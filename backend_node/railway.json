@@ -1,0 +1,12 @@
+{
+  "build": {
+    "command": "npm install",
+    "watchPatterns": ["src/**"]
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "startCommand": "node src/server.js"
+  }
+}
