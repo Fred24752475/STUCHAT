@@ -2,15 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// Helper to create notification
-async function createNotification(userId, type, title, message, fromUserId, referenceId) {
-  await db.query(
-    `INSERT INTO notifications (user_id, type, title, message, from_user_id, reference_id) 
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, type, title, message, fromUserId, referenceId]
-  );
-}
-
 // Get friend requests (received)
 router.get('/requests/:userId', async (req, res) => {
   try {
@@ -21,7 +12,7 @@ router.get('/requests/:userId', async (req, res) => {
              u.name, u.email, u.profile_image_url, u.course, u.year
       FROM friend_requests fr
       JOIN users u ON fr.sender_id = u.id
-      WHERE fr.receiver_id = ? AND fr.status = 'pending'
+      WHERE fr.receiver_id = $1 AND fr.status = 'pending'
       ORDER BY fr.created_at DESC
     `, [userId]);
     
@@ -41,7 +32,7 @@ router.get('/sent/:userId', async (req, res) => {
              u.name, u.email, u.profile_image_url, u.course, u.year
       FROM friend_requests fr
       JOIN users u ON fr.receiver_id = u.id
-      WHERE fr.sender_id = ? AND fr.status = 'pending'
+      WHERE fr.sender_id = $1 AND fr.status = 'pending'
       ORDER BY fr.created_at DESC
     `, [userId]);
     
@@ -57,11 +48,11 @@ router.post('/request', async (req, res) => {
     const { senderId, receiverId } = req.body;
     
     // Get sender info
-    const sender = await db.query('SELECT name FROM users WHERE id = ?', [senderId]);
+    const sender = await db.query('SELECT name FROM users WHERE id = $1', [senderId]);
     
     // Check if already friends
     const friends = await db.query(
-      'SELECT * FROM followers WHERE follower_id = ? AND following_id = ?',
+      'SELECT * FROM followers WHERE follower_id = $1 AND following_id = $2',
       [senderId, receiverId]
     );
     
@@ -71,7 +62,7 @@ router.post('/request', async (req, res) => {
     
     // Check if request already exists
     const existing = await db.query(
-      'SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ?',
+      'SELECT id FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2',
       [senderId, receiverId]
     );
     
@@ -81,7 +72,7 @@ router.post('/request', async (req, res) => {
     
     // Create friend request
     const result = await db.query(
-      'INSERT INTO friend_requests (sender_id, receiver_id, status) VALUES (?, ?, ?)',
+      'INSERT INTO friend_requests (sender_id, receiver_id, status) VALUES ($1, $2, $3) RETURNING id',
       [senderId, receiverId, 'pending']
     );
     
@@ -93,10 +84,10 @@ router.post('/request', async (req, res) => {
       'New Friend Request',
       `${senderName} sent you a friend request`,
       senderId,
-      result.lastId
+      result.rows[0]?.id
     );
     
-    res.status(201).json({ success: true, message: 'Friend request sent', requestId: result.lastId });
+    res.status(201).json({ success: true, message: 'Friend request sent', requestId: result.rows[0]?.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -107,7 +98,7 @@ router.post('/accept', async (req, res) => {
   try {
     const { requestId, userId, requesterId } = req.body;
     
-    const request = await db.query('SELECT * FROM friend_requests WHERE id = ?', [requestId]);
+    const request = await db.query('SELECT * FROM friend_requests WHERE id = $1', [requestId]);
     
     if (request.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
@@ -116,14 +107,14 @@ router.post('/accept', async (req, res) => {
     const { sender_id, receiver_id } = request.rows[0];
     
     // Update request status
-    await db.query('UPDATE friend_requests SET status = ? WHERE id = ?', ['accepted', requestId]);
+    await db.query('UPDATE friend_requests SET status = $1 WHERE id = $2', ['accepted', requestId]);
     
     // Add to followers (both ways for friends)
-    await db.query('INSERT OR IGNORE INTO followers (follower_id, following_id) VALUES (?, ?)', [receiver_id, sender_id]);
-    await db.query('INSERT OR IGNORE INTO followers (follower_id, following_id) VALUES (?, ?)', [sender_id, receiver_id]);
+    await db.query('INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)', [receiver_id, sender_id]);
+    await db.query('INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)', [sender_id, receiver_id]);
     
     // Get user info
-    const user = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
+    const user = await db.query('SELECT name FROM users WHERE id = $1', [userId]);
     const userName = user.rows[0]?.name || 'Someone';
     
     // Create notification for request sender
@@ -137,7 +128,7 @@ router.post('/accept', async (req, res) => {
     );
     
     // Delete the notification
-    await db.query('DELETE FROM notifications WHERE reference_id = ? AND type = ?', [requestId, 'friend_request']);
+    await db.query('DELETE FROM notifications WHERE reference_id = $1 AND type = $2', [requestId, 'friend_request']);
     
     res.json({ success: true, message: 'Friend request accepted' });
   } catch (err) {
@@ -153,13 +144,13 @@ router.delete('/reject/:requestId', async (req, res) => {
     const userId = body.userId || body.requesterId;
     
     // Get request info first
-    const request = await db.query('SELECT * FROM friend_requests WHERE id = ?', [requestId]);
+    const request = await db.query('SELECT * FROM friend_requests WHERE id = $1', [requestId]);
     
     if (request.rows.length > 0) {
       const { sender_id } = request.rows[0];
       
       // Get user info
-      const user = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
+      const user = await db.query('SELECT name FROM users WHERE id = $1', [userId]);
       const userName = user.rows[0]?.name || 'Someone';
       
       // Create notification for request sender
@@ -174,10 +165,10 @@ router.delete('/reject/:requestId', async (req, res) => {
     }
     
     // Delete the friend request
-    await db.query('DELETE FROM friend_requests WHERE id = ?', [requestId]);
+    await db.query('DELETE FROM friend_requests WHERE id = $1', [requestId]);
     
     // Delete related notifications
-    await db.query('DELETE FROM notifications WHERE reference_id = ?', [requestId]);
+    await db.query('DELETE FROM notifications WHERE reference_id = $1', [requestId]);
     
     res.json({ success: true, message: 'Friend request rejected' });
   } catch (err) {
@@ -194,7 +185,7 @@ router.get('/list/:userId', async (req, res) => {
       SELECT u.id, u.name, u.email, u.profile_image_url, u.course, u.year
       FROM followers f
       JOIN users u ON f.following_id = u.id
-      WHERE f.follower_id = ?
+      WHERE f.follower_id = $1
     `, [userId]);
     
     res.json(result.rows);
@@ -202,5 +193,14 @@ router.get('/list/:userId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Helper to create notification
+async function createNotification(userId, type, title, message, fromUserId, referenceId) {
+  await db.query(
+    `INSERT INTO notifications (user_id, type, title, message, from_user_id, reference_id) 
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [userId, type, title, message, fromUserId, referenceId]
+  );
+}
 
 module.exports = router;
