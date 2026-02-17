@@ -1,0 +1,16 @@
+✅ REVERTED - iOS 18 Glass UI Removed
+
+All screens have been reverted to their original state.
+
+Glass widget files are KEPT for future use in:
+- lib/widgets/glass_button.dart
+- lib/widgets/glass_card.dart
+- lib/widgets/glass_text_field.dart
+- lib/widgets/glass_app_bar.dart
+- lib/widgets/glass_background.dart
+- lib/widgets/glass_scaffold.dart
+- lib/widgets/glass_fab.dart
+
+To use glass UI in the future, simply import these widgets in your screens.
+
+Your app is now back to the original design!
