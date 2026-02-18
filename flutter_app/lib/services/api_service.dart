@@ -2296,18 +2296,23 @@ class ApiService {
 
   static Future<List<dynamic>> getAvailableUsers(String currentUserId) async {
     try {
-      // Query users table directly from Supabase (has name, email, course, year)
+      print('Fetching users, current user: $currentUserId');
+      
+      // Query users table directly from Supabase (UUID)
       final response = await SupabaseService.client
           .from('users')
           .select('id, name, email, profile_image_url, course, year')
           .neq('id', currentUserId)
           .limit(50);
       
-      print('Supabase response for users: $response');
-      return response ?? [];
+      print('Supabase response for users: ${response.length} users found');
+      if (response.isNotEmpty) {
+        print('First user: ${response.first}');
+      }
+      return response;
     } catch (e) {
       print('Error fetching users from Supabase: $e');
-      throw Exception('Connection error: $e');
+      rethrow;
     }
   }
 
