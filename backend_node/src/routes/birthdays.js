@@ -12,9 +12,10 @@ router.post('/', async (req, res) => {
     }
 
     await db.query(
-      `INSERT OR REPLACE INTO user_birthdays (user_id, birth_date, show_on_profile) 
-       VALUES (?, ?, ?)`,
-      [userId, birthDate, showOnProfile ? 1 : 0]
+      `INSERT INTO user_birthdays (user_id, birth_date, show_on_profile) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET birth_date = $2, show_on_profile = $3`,
+      [userId, birthDate, showOnProfile ? true : false]
     );
 
     res.status(201).json({ success: true });
@@ -30,7 +31,7 @@ router.get('/:userId', async (req, res) => {
     const { userId } = req.params;
 
     const result = await db.query(
-      `SELECT birth_date, show_on_profile FROM user_birthdays WHERE user_id = ?`,
+      `SELECT birth_date, show_on_profile FROM user_birthdays WHERE user_id = $1`,
       [userId]
     );
 
@@ -52,8 +53,8 @@ router.get('/today/list', async (req, res) => {
       `SELECT u.id, u.name, u.profile_image_url, ub.birth_date 
        FROM user_birthdays ub
        JOIN users u ON ub.user_id = u.id
-       WHERE ub.show_on_profile = 1 
-       AND strftime('%m-%d', ub.birth_date) = strftime('%m-%d', 'now')
+       WHERE ub.show_on_profile = true 
+       AND TO_CHAR(ub.birth_date, 'MM-DD') = TO_CHAR(NOW(), 'MM-DD')
        ORDER BY u.name`,
       []
     );
@@ -76,19 +77,18 @@ router.post('/celebrate', async (req, res) => {
 
     await db.query(
       `INSERT INTO birthday_celebrations (user_id, celebrator_id, message) 
-       VALUES (?, ?, ?)`,
+       VALUES ($1, $2, $3)`,
       [userId, celebratorId, message || 'Happy Birthday! 🎉']
     );
 
-    // Create notification
     const celebrator = await db.query(
-      `SELECT name FROM users WHERE id = ?`,
+      `SELECT name FROM users WHERE id = $1`,
       [celebratorId]
     );
 
     await db.query(
       `INSERT INTO notifications (user_id, type, title, message, from_user_id, reference_id) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [userId, 'birthday', 'Birthday message', `${celebrator.rows[0]?.name} sent you a birthday message!`, celebratorId, celebratorId]
     );
 
@@ -107,7 +107,7 @@ router.get('/celebrations/:userId', async (req, res) => {
     const result = await db.query(
       `SELECT bc.*, u.name, u.profile_image_url FROM birthday_celebrations bc
        JOIN users u ON bc.celebrator_id = u.id
-       WHERE bc.user_id = ? ORDER BY bc.created_at DESC`,
+       WHERE bc.user_id = $1 ORDER BY bc.created_at DESC`,
       [userId]
     );
 
@@ -125,11 +125,11 @@ router.get('/upcoming/:days', async (req, res) => {
 
     const result = await db.query(
       `SELECT u.id, u.name, u.profile_image_url, ub.birth_date,
-              CAST((julianday(ub.birth_date) - julianday('now')) AS INTEGER) as days_until
+              EXTRACT(DAY FROM (ub.birth_date - CURRENT_DATE)) as days_until
        FROM user_birthdays ub
        JOIN users u ON ub.user_id = u.id
-       WHERE ub.show_on_profile = 1 
-       AND CAST((julianday(ub.birth_date) - julianday('now')) AS INTEGER) BETWEEN 0 AND ?
+       WHERE ub.show_on_profile = true 
+       AND EXTRACT(DAY FROM (ub.birth_date - CURRENT_DATE)) BETWEEN 0 AND $1
        ORDER BY days_until ASC`,
       [days]
     );

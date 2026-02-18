@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
              (SELECT COUNT(*) FROM story_views WHERE story_id = s.id) as view_count
       FROM stories s
       JOIN users u ON s.user_id = u.id
-      WHERE s.expires_at > datetime('now')
+      WHERE s.expires_at > NOW()
       ORDER BY s.created_at DESC
     `);
     res.json(result.rows);

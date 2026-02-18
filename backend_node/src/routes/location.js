@@ -11,21 +11,15 @@ router.post('/update', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    db.run(
-      `UPDATE users SET latitude = ?, longitude = ?, address = ?, last_location_update = ? WHERE id = ?`,
-      [latitude, longitude, address, new Date().toISOString(), userId],
-      function(err) {
-        if (err) {
-          console.error('Error updating location:', err);
-          return res.status(500).json({ error: 'Failed to update location' });
-        }
-        
-        res.status(200).json({ 
-          success: true,
-          message: 'Location updated successfully'
-        });
-      }
+    await db.query(
+      `UPDATE users SET latitude = $1, longitude = $2, address = $3, last_location_update = $4 WHERE id = $5`,
+      [latitude, longitude, address, new Date().toISOString(), userId]
     );
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Location updated successfully'
+    });
   } catch (error) {
     console.error('Location update error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -41,22 +35,16 @@ router.get('/:userId', async (req, res) => {
       return res.status(400).json({ error: 'User ID required' });
     }
     
-    db.get(
-      'SELECT latitude, longitude, address, last_location_update FROM users WHERE id = ?',
-      [userId],
-      (err, row) => {
-        if (err) {
-          console.error('Error getting location:', err);
-          return res.status(500).json({ error: 'Failed to get location' });
-        }
-        
-        if (!row) {
-          return res.status(404).json({ error: 'User not found' });
-        }
-        
-        res.status(200).json(row);
-      }
+    const result = await db.query(
+      'SELECT latitude, longitude, address, last_location_update FROM users WHERE id = $1',
+      [userId]
     );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error('Get location error:', error);
     res.status(500).json({ error: 'Internal server error' });

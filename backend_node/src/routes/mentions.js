@@ -17,17 +17,16 @@ router.post('/', async (req, res) => {
 
     await db.query(
       `INSERT INTO user_mentions (mentioned_user_id, mentioning_user_id, post_id, comment_id) 
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4)`,
       [mentionedUserId, mentioningUserId, postId || null, commentId || null]
     );
 
-    // Create notification
-    const mentioningUser = await db.query('SELECT name FROM users WHERE id = ?', [mentioningUserId]);
+    const mentioningUser = await db.query('SELECT name FROM users WHERE id = $1', [mentioningUserId]);
     const title = 'Mention';
     const message = `${mentioningUser.rows[0]?.name || 'Someone'} mentioned you in a post`;
     await db.query(
       `INSERT INTO notifications (user_id, type, title, message, from_user_id, reference_id) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [mentionedUserId, 'mention', title, message, mentioningUserId, postId || commentId]
     );
 
@@ -46,7 +45,7 @@ router.get('/:userId', async (req, res) => {
     const result = await db.query(
       `SELECT um.*, u.name, u.profile_image_url FROM user_mentions um
        JOIN users u ON um.mentioning_user_id = u.id
-       WHERE um.mentioned_user_id = ? ORDER BY um.created_at DESC`,
+       WHERE um.mentioned_user_id = $1 ORDER BY um.created_at DESC`,
       [userId]
     );
 
@@ -65,7 +64,7 @@ router.get('/post/:postId', async (req, res) => {
     const result = await db.query(
       `SELECT u.id, u.name, u.profile_image_url FROM user_mentions um
        JOIN users u ON um.mentioned_user_id = u.id
-       WHERE um.post_id = ?`,
+       WHERE um.post_id = $1`,
       [postId]
     );
 

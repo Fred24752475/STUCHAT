@@ -41,24 +41,22 @@ router.post('/:id/like', async (req, res) => {
       return res.status(400).json({ error: 'Missing userId' });
     }
 
-    // Check if already liked
     const existingLike = await db.query(
-      `SELECT id FROM likes WHERE post_id = ? AND user_id = ?`,
+      `SELECT id FROM likes WHERE post_id = $1 AND user_id = $2`,
       [id, userId]
     );
 
-    if (existingLike.length > 0) {
+    if (existingLike.rows.length > 0) {
       return res.status(200).json({ alreadyLiked: true, message: 'Already liked' });
     }
 
     await db.query(
-      `INSERT INTO likes (post_id, user_id) VALUES (?, ?)`,
+      `INSERT INTO likes (post_id, user_id) VALUES ($1, $2)`,
       [id, userId]
     );
 
-    // Update like count
     await db.query(
-      `UPDATE posts SET likes = likes + 1 WHERE id = ?`,
+      `UPDATE posts SET likes = likes + 1 WHERE id = $1`,
       [id]
     );
 
@@ -76,13 +74,12 @@ router.delete('/:id/like', async (req, res) => {
   
   try {
     await db.query(
-      `DELETE FROM likes WHERE post_id = ? AND user_id = ?`,
+      `DELETE FROM likes WHERE post_id = $1 AND user_id = $2`,
       [id, userId]
     );
 
-    // Update like count
     await db.query(
-      `UPDATE posts SET likes = likes - 1 WHERE id = ? AND likes > 0`,
+      `UPDATE posts SET likes = likes - 1 WHERE id = $1 AND likes > 0`,
       [id]
     );
 
@@ -104,13 +101,12 @@ router.post('/:id/comments', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)`,
+      `INSERT INTO comments (post_id, user_id, content) VALUES ($1, $2, $3) RETURNING id`,
       [id, userId, content]
     );
 
-    // Update comment count
     await db.query(
-      `UPDATE posts SET comments = comments + 1 WHERE id = ?`,
+      `UPDATE posts SET comments = comments + 1 WHERE id = $1`,
       [id]
     );
 
@@ -129,7 +125,7 @@ router.get('/:id/comments', async (req, res) => {
     const result = await db.query(
       `SELECT c.*, u.name as user_name FROM comments c 
        JOIN users u ON c.user_id = u.id 
-       WHERE c.post_id = ? ORDER BY c.created_at DESC`,
+       WHERE c.post_id = $1 ORDER BY c.created_at DESC`,
       [id]
     );
 
@@ -150,28 +146,26 @@ router.delete('/:id/comments/:commentId', async (req, res) => {
       return res.status(400).json({ error: 'Missing userId' });
     }
 
-    // Check if user owns comment
     const comment = await db.query(
-      `SELECT user_id FROM comments WHERE id = ? AND post_id = ?`,
+      `SELECT user_id FROM comments WHERE id = $1 AND post_id = $2`,
       [commentId, id]
     );
 
-    if (comment.length === 0) {
+    if (comment.rows.length === 0) {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    if (comment[0].user_id !== parseInt(userId)) {
+    if (comment.rows[0].user_id !== parseInt(userId)) {
       return res.status(403).json({ error: 'Not authorized to delete this comment' });
     }
 
     await db.query(
-      `DELETE FROM comments WHERE id = ? AND post_id = ?`,
+      `DELETE FROM comments WHERE id = $1 AND post_id = $2`,
       [commentId, id]
     );
 
-    // Update comment count
     await db.query(
-      `UPDATE posts SET comments = comments - 1 WHERE id = ? AND comments > 0`,
+      `UPDATE posts SET comments = comments - 1 WHERE id = $1 AND comments > 0`,
       [id]
     );
 

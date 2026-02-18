@@ -2,42 +2,38 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// Get conversations for a user - SIMPLIFIED for SQLite
+// Get conversations for a user
 router.get('/conversations/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
-    // Get all messages involving this user
     const messages = await db.query(`
       SELECT 
         dm.*,
         CASE 
-          WHEN dm.sender_id = ? THEN dm.receiver_id
+          WHEN dm.sender_id = $1 THEN dm.receiver_id
           ELSE dm.sender_id
         END as other_user_id
       FROM direct_messages dm
-      WHERE dm.sender_id = ? OR dm.receiver_id = ?
+      WHERE dm.sender_id = $1 OR dm.receiver_id = $1
       ORDER BY dm.created_at DESC
-    `, [userId, userId, userId]);
+    `, [userId]);
 
-    // Group by other user and get latest message
     const conversationsMap = new Map();
     
     for (const msg of messages.rows) {
       const otherUserId = msg.other_user_id;
       
       if (!conversationsMap.has(otherUserId)) {
-        // Get user info
         const userResult = await db.query(
-          'SELECT id, name, profile_image_url FROM users WHERE id = ?',
+          'SELECT id, name, profile_image_url FROM users WHERE id = $1',
           [otherUserId]
         );
         
         if (userResult.rows.length > 0) {
           const user = userResult.rows[0];
           
-          // Count unread messages
           const unreadResult = await db.query(
-            'SELECT COUNT(*) as count FROM direct_messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 0',
+            'SELECT COUNT(*) as count FROM direct_messages WHERE sender_id = $1 AND receiver_id = $2 AND is_read = 0',
             [otherUserId, userId]
           );
           
@@ -71,8 +67,8 @@ router.get('/:userId1/:userId2', async (req, res) => {
              sender.profile_image_url as sender_image
       FROM direct_messages dm
       JOIN users sender ON dm.sender_id = sender.id
-      WHERE (dm.sender_id = ? AND dm.receiver_id = ?)
-         OR (dm.sender_id = ? AND dm.receiver_id = ?)
+      WHERE (dm.sender_id = $1 AND dm.receiver_id = $2)
+         OR (dm.sender_id = $3 AND dm.receiver_id = $4)
       ORDER BY dm.created_at ASC
     `, [userId1, userId2, userId2, userId1]);
     res.json(result.rows);
@@ -87,15 +83,15 @@ router.post('/', async (req, res) => {
   const { senderId, receiverId, content, fileUrl, messageType = 'text', fileName, audioDuration } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO direct_messages (sender_id, receiver_id, content, file_url, message_type, file_name, audio_duration) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *',
+      'INSERT INTO direct_messages (sender_id, receiver_id, content, file_url, message_type, file_name, audio_duration) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [
         senderId, 
         receiverId, 
         content, 
-        fileUrl || null,          // Convert undefined to null
-        messageType || 'text',    // Default to 'text'
-        fileName || null,         // Convert undefined to null
-        audioDuration || null     // Convert undefined to null
+        fileUrl || null,
+        messageType || 'text',
+        fileName || null,
+        audioDuration || null
       ]
     );
     res.status(201).json(result.rows[0]);
@@ -110,7 +106,7 @@ router.put('/read/:userId1/:userId2', async (req, res) => {
   const { userId1, userId2 } = req.params;
   try {
     await db.query(
-      'UPDATE direct_messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0',
+      'UPDATE direct_messages SET is_read = 1 WHERE sender_id = $1 AND receiver_id = $2 AND is_read = 0',
       [userId2, userId1]
     );
     res.json({ success: true });
@@ -124,7 +120,7 @@ router.put('/read/:userId1/:userId2', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await db.query('DELETE FROM direct_messages WHERE id = ?', [id]);
+    await db.query('DELETE FROM direct_messages WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Error in /delete:', err);

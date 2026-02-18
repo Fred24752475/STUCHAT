@@ -13,7 +13,7 @@ router.get('/:userId', async (req, res) => {
              (SELECT COUNT(*) FROM posts WHERE user_id = u.id) as posts_count
       FROM users u
       LEFT JOIN user_profiles up ON u.id = up.user_id
-      WHERE u.id = ?
+      WHERE u.id = $1
     `, [userId]);
 
     if (user.rows.length === 0) {
@@ -32,32 +32,30 @@ router.put('/:userId', async (req, res) => {
   const { name, bio, interests, major, phone, website, location, profileImageUrl } = req.body;
   
   try {
-    // Update user table
     if (name || profileImageUrl) {
       await db.query(
-        'UPDATE users SET name = COALESCE(?, name), profile_image_url = COALESCE(?, profile_image_url) WHERE id = ?',
+        'UPDATE users SET name = COALESCE($1, name), profile_image_url = COALESCE($2, profile_image_url) WHERE id = $3',
         [name, profileImageUrl, userId]
       );
     }
 
-    // Update or create profile
-    const existing = await db.query('SELECT * FROM user_profiles WHERE user_id = ?', [userId]);
+    const existing = await db.query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
     
     if (existing.rows.length > 0) {
       await db.query(`
         UPDATE user_profiles 
-        SET bio = COALESCE(?, bio), 
-            interests = COALESCE(?, interests),
-            major = COALESCE(?, major),
-            phone = COALESCE(?, phone),
-            website = COALESCE(?, website),
-            location = COALESCE(?, location)
-        WHERE user_id = ?
+        SET bio = COALESCE($1, bio), 
+            interests = COALESCE($2, interests),
+            major = COALESCE($3, major),
+            phone = COALESCE($4, phone),
+            website = COALESCE($5, website),
+            location = COALESCE($6, location)
+        WHERE user_id = $7
       `, [bio, interests, major, phone, website, location, userId]);
     } else {
       await db.query(`
         INSERT INTO user_profiles (user_id, bio, interests, major, phone, website, location)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `, [userId, bio, interests, major, phone, website, location]);
     }
 
@@ -75,7 +73,7 @@ router.get('/:userId/posts', async (req, res) => {
       SELECT p.*, u.name as user_name, u.profile_image_url
       FROM posts p
       JOIN users u ON p.user_id = u.id
-      WHERE p.user_id = ?
+      WHERE p.user_id = $1
       ORDER BY p.created_at DESC
     `, [userId]);
     res.json(result.rows);
@@ -92,7 +90,7 @@ router.get('/:userId/achievements', async (req, res) => {
       SELECT a.*, ua.earned_at
       FROM user_achievements ua
       JOIN achievements a ON ua.achievement_id = a.id
-      WHERE ua.user_id = ?
+      WHERE ua.user_id = $1
       ORDER BY ua.earned_at DESC
     `, [userId]);
     res.json(result.rows);
@@ -107,8 +105,8 @@ router.put('/:userId/privacy', async (req, res) => {
   const { isPrivate } = req.body;
   try {
     await db.query(
-      'UPDATE user_profiles SET is_private = ? WHERE user_id = ?',
-      [isPrivate ? 1 : 0, userId]
+      'UPDATE user_profiles SET is_private = $1 WHERE user_id = $2',
+      [isPrivate ? true : false, userId]
     );
     res.json({ success: true });
   } catch (err) {
