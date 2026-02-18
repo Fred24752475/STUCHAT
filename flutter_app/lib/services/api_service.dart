@@ -2296,11 +2296,11 @@ class ApiService {
 
   static Future<List<dynamic>> getAvailableUsers(String currentUserId) async {
     try {
-      // Query user_profiles table directly from Supabase
+      // Query users table directly from Supabase (has name, email, course, year)
       final response = await SupabaseService.client
-          .from('user_profiles')
-          .select('id, user_id, name, email, profile_image_url, course, year')
-          .neq('user_id', currentUserId)
+          .from('users')
+          .select('id, name, email, profile_image_url, course, year')
+          .neq('id', currentUserId)
           .limit(50);
       
       print('Supabase response for users: $response');
