@@ -13,12 +13,12 @@ class ApiService {
   // iOS Simulator: Use localhost:3000
   // Physical Device: Use your computer's IP address (e.g., 192.168.1.100:3000)
   // Web/Desktop: Use localhost:3000
-  // Production: Use Railway URL
+  // Production: Use Render URL
 
   // Set this to true when deploying to production
   static const bool useProduction = true;
-  static const String productionUrl = 'https://stuchat-production.up.railway.app/api';
-  static const String productionBaseUrl = 'https://stuchat-production.up.railway.app';
+  static const String productionUrl = 'https://stuchat-1-exlv.onrender.com/api';
+  static const String productionBaseUrl = 'https://stuchat-1-exlv.onrender.com';
 
   static String get baseUrl {
     // Automatically detect platform and return appropriate URL

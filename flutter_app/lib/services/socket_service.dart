@@ -19,7 +19,7 @@ class SocketService {
 
   // Set this to true when deploying to production
   static const bool useProduction = true;
-  static const String productionUrl = 'https://stuchat-production.up.railway.app';
+  static const String productionUrl = 'https://stuchat-1-exlv.onrender.com';
 
   static String get socketUrl {
     if (useProduction) {
